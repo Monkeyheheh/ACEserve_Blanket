@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projects</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="sidebar">
+            <h2>Welcome <span id="userDisplay"></span></h2>
+            <nav>
+                <ul>
+                    <li><a href="dashboard.html">Dashboard</a></li>
+                    <li><a href="projects.html" class="active">Projects</a></li>
+                    <li><a href="tasks.html">Tasks</a></li>
+                    <li><a href="activity.html">Activity</a></li>
+                    <li><a href="#" onclick="logout()">Logout</a></li>
+                </ul>
+            </nav>
+        </div>
+        <div class="main-content">
+            <h1>Projects</h1>
+            <div class="project-list">
+                <div class="card">
+                    <h3>Create New Project</h3>
+                    <form id="newProjectForm">
+                        <input type="text" id="projectName" placeholder="Project Name" required>
+                        <textarea id="projectDescription" placeholder="Project Description" required></textarea>
+                        <button type="submit" class="btn-primary">+ New Project</button>
+                    </form>
+                </div>
+                <div id="projectsContainer"></div>
+            </div>
+            <!-- File Editor Modal -->
+            <div id="fileModal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <h2>Edit File</h2>
+                    <textarea id="fileContent" rows="20" cols="50"></textarea>
+                    <button onclick="saveFile()" class="btn-primary">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Check if user is logged in
+        const currentUser = localStorage.getItem('currentUser');
+        if (!currentUser) {
+            window.location.href = 'index.html';
+        }
+        document.getElementById('userDisplay').textContent = currentUser;
+        
+        function logout() {
+            localStorage.removeItem('currentUser');
+            window.location.href = 'index.html';
+        }
+
+        // Project management functionality
+        const projects = JSON.parse(localStorage.getItem('projects')) || [];
+        let currentProjectIndex = -1;
+        let currentFilePath = '';
+
+        function logActivity(description) {
+            const activities = JSON.parse(localStorage.getItem('activities')) || [];
+            activities.push({
+                timestamp: Date.now(),
+                description: description
+            });
+            localStorage.setItem('activities', JSON.stringify(activities));
+        }
+
+        document.getElementById('newProjectForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const projectName = document.getElementById('projectName').value;
+            const projectDescription = document.getElementById('projectDescription').value;
+            const newProject = {
+                name: projectName,
+                description: projectDescription,
+                files: {
+                    '/': [] // Root directory
+                }
+            };
+            projects.push(newProject);
+            localStorage.setItem('projects', JSON.stringify(projects));
+            logActivity(`Created new project: ${projectName}`);
+            displayProjects();
+            this.reset();
+        });
+
+        function displayProjects() {
+            const projectsContainer = document.getElementById('projectsContainer');
+            projectsContainer.innerHTML = '';
+            
+            projects.forEach((project, index) => {
+                const projectCard = document.createElement('div');
+                projectCard.className = 'card project-card';
+                projectCard.innerHTML = `
+                    <h3>${project.name}</h3>
+                    <p>${project.description}</p>
+                    <div class="file-tree">
+                        <h4>Files</h4>
+                        <div class="file-actions">
+                            <button onclick="createFile(${index})" class="btn-small">New File</button>
+                            <button onclick="createFolder(${index})" class="btn-small">New Folder</button>
+                        </div>
+                        <div id="fileTree${index}" class="tree-container"></div>
+                    </div>
+                    <button onclick="deleteProject(${index})" class="btn-danger">Delete Project</button>
+                `;
+                projectsContainer.appendChild(projectCard);
+                displayFileTree(index);
+            });
+        }
+
+        function displayFileTree(projectIndex) {
+            const project = projects[projectIndex];
+            const treeContainer = document.getElementById(`fileTree${projectIndex}`);
+            treeContainer.innerHTML = generateFileTree(project.files, '/', projectIndex);
+        }
+
+        function generateFileTree(files, path, projectIndex) {
+            let html = '<ul>';
+            if (typeof files === 'object') {
+                for (const [name, content] of Object.entries(files)) {
+                    if (name === '/') continue;
+                    const fullPath = path + name;
+                    if (typeof content === 'object') {
+                        // Folder
+                        html += `
+                            <li class="folder">
+                                📁 ${name}
+                                ${generateFileTree(content, fullPath + '/', projectIndex)}
+                            </li>`;
+                    } else {
+                        // File
+                        html += `
+                            <li class="file">
+                                📄 <span onclick="editFile(${projectIndex}, '${fullPath}')">${name}</span>
+                                <button onclick="deleteFile(${projectIndex}, '${fullPath}')" class="btn-small btn-danger">×</button>
+                            </li>`;
+                    }
+                }
+            }
+            return html + '</ul>';
+        }
+
+        function createFile(projectIndex) {
+            const fileName = prompt('Enter file name:');
+            if (!fileName) return;
+            
+            const project = projects[projectIndex];
+            if (!project.files['/']) project.files['/'] = {};
+            project.files['/' + fileName] = '';
+            
+            localStorage.setItem('projects', JSON.stringify(projects));
+            logActivity(`Created file: ${fileName} in project: ${project.name}`);
+            displayProjects();
+        }
+
+        function createFolder(projectIndex) {
+            const folderName = prompt('Enter folder name:');
+            if (!folderName) return;
+            
+            const project = projects[projectIndex];
+            if (!project.files['/']) project.files['/'] = {};
+            project.files['/' + folderName] = {};
+            
+            localStorage.setItem('projects', JSON.stringify(projects));
+            logActivity(`Created folder: ${folderName} in project: ${project.name}`);
+            displayProjects();
+        }
+
+        function editFile(projectIndex, filePath) {
+            currentProjectIndex = projectIndex;
+            currentFilePath = filePath;
+            const modal = document.getElementById('fileModal');
+            const content = projects[projectIndex].files[filePath] || '';
+            document.getElementById('fileContent').value = content;
+            modal.style.display = 'block';
+        }
+
+        function saveFile() {
+            const content = document.getElementById('fileContent').value;
+            projects[currentProjectIndex].files[currentFilePath] = content;
+            localStorage.setItem('projects', JSON.stringify(projects));
+            logActivity(`Updated file: ${currentFilePath}`);
+            document.getElementById('fileModal').style.display = 'none';
+            displayProjects();
+        }
+
+        function deleteFile(projectIndex, filePath) {
+            if (confirm('Delete this file?')) {
+                delete projects[projectIndex].files[filePath];
+                localStorage.setItem('projects', JSON.stringify(projects));
+                logActivity(`Deleted file: ${filePath}`);
+                displayProjects();
+            }
+        }
+
+        // Close modal when clicking X
+        document.querySelector('.close').onclick = function() {
+            document.getElementById('fileModal').style.display = 'none';
+        }
+
+        // Initial display
+        displayProjects();
+    </script>
+</body>
+</html>

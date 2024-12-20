@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="sidebar">
+            <h2>Welcome <span id="userDisplay"></span></h2>
+            <nav>
+                <ul>
+                    <li><a href="dashboard.html">Dashboard</a></li>
+                    <li><a href="projects.html">Projects</a></li>
+                    <li><a href="tasks.html">Tasks</a></li>
+                    <li><a href="activity.html" class="active">Activity</a></li>
+                    <li><a href="#" onclick="logout()">Logout</a></li>
+                </ul>
+            </nav>
+        </div>
+        <div class="main-content">
+            <h1>Recent Activity</h1>
+            <div class="activity-feed">
+                <div class="card">
+                    <h3>Activity Timeline</h3>
+                    <div id="timelineContainer" class="timeline">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Authentication check
+        const currentUser = localStorage.getItem('currentUser');
+        if (!currentUser) window.location.href = 'index.html';
+        document.getElementById('userDisplay').textContent = currentUser;
+        
+        function logout() {
+            localStorage.removeItem('currentUser');
+            window.location.href = 'index.html';
+        }
+
+        // Activity display functionality
+        function displayActivities() {
+            const activities = JSON.parse(localStorage.getItem('activities')) || [];
+            const timelineContainer = document.getElementById('timelineContainer');
+            
+            if (activities.length === 0) {
+                timelineContainer.innerHTML = '<p>No recent activity to display</p>';
+                return;
+            }
+
+            timelineContainer.innerHTML = activities
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .map(activity => `
+                    <div class="activity-item">
+                        <span class="activity-time">${new Date(activity.timestamp).toLocaleString()}</span>
+                        <p>${activity.description}</p>
+                    </div>
+                `).join('');
+        }
+
+        // Initial display
+        displayActivities();
+    </script>
+</body>
+</html>
